@@ -1,0 +1,315 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { motion } from "framer-motion";
+
+const colorMap = {
+  green: { label: "Жасыл", cars: 10, cls: "bg-green-500", road: "bg-green-600/85" },
+  yellow: { label: "Сары", cars: 20, cls: "bg-yellow-400", road: "bg-yellow-500/85" },
+  red: { label: "Қызыл", cars: 30, cls: "bg-red-500", road: "bg-red-600/85" },
+};
+
+const defaultLoads = {
+  north: "red",
+  south: "yellow",
+  west: "green",
+  east: "red",
+};
+
+const directions = [
+  { key: "north", label: "Солтүстік" },
+  { key: "south", label: "Оңтүстік" },
+  { key: "west", label: "Батыс" },
+  { key: "east", label: "Шығыс" },
+];
+
+function Light({ active, countdown }) {
+  return (
+    <div className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-900 p-2 shadow-lg">
+      <div className={`h-4 w-4 rounded-full ${active === "red" ? "bg-red-500" : "bg-red-900"}`} />
+      <div className={`h-4 w-4 rounded-full ${active === "yellow" ? "bg-yellow-400" : "bg-yellow-900"}`} />
+      <div className={`h-4 w-4 rounded-full ${active === "green" ? "bg-green-500" : "bg-green-900"}`} />
+      <div className="mt-1 text-xs font-bold text-white">{countdown}</div>
+    </div>
+  );
+}
+
+function RoadQueue({ dir, load, isGreen, carsShown = 4 }) {
+  const cfg = colorMap[load];
+  const cars = Array.from({ length: carsShown });
+
+  const laneBase = "absolute flex items-center justify-center gap-2";
+  const car = `h-6 w-10 rounded-md border border-white/40 ${cfg.cls} shadow`;
+
+  if (dir === "north") {
+    return (
+      <div className={`absolute left-1/2 top-0 h-40 w-24 -translate-x-1/2 ${cfg.road} border-x-4 border-white/60`}>
+        <div className="absolute inset-0 border-l-2 border-dashed border-white/70 left-1/2 -translate-x-1/2" />
+        <div className={`${laneBase} bottom-2 left-1/2 -translate-x-1/2 flex-col`}>
+          {cars.map((_, i) => (
+            <motion.div
+              key={i}
+              animate={isGreen ? { y: [-2, -24] } : { y: 0 }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.12 }}
+              className={car}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (dir === "south") {
+    return (
+      <div className={`absolute bottom-0 left-1/2 h-40 w-24 -translate-x-1/2 ${cfg.road} border-x-4 border-white/60`}>
+        <div className="absolute inset-0 border-l-2 border-dashed border-white/70 left-1/2 -translate-x-1/2" />
+        <div className={`${laneBase} top-2 left-1/2 -translate-x-1/2 flex-col`}>
+          {cars.map((_, i) => (
+            <motion.div
+              key={i}
+              animate={isGreen ? { y: [2, 24] } : { y: 0 }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.12 }}
+              className={car}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (dir === "west") {
+    return (
+      <div className={`absolute left-0 top-1/2 h-24 w-40 -translate-y-1/2 ${cfg.road} border-y-4 border-white/60`}>
+        <div className="absolute inset-0 border-t-2 border-dashed border-white/70 top-1/2 -translate-y-1/2" />
+        <div className={`${laneBase} right-2 top-1/2 -translate-y-1/2`}>
+          {cars.map((_, i) => (
+            <motion.div
+              key={i}
+              animate={isGreen ? { x: [-2, 24] } : { x: 0 }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.12 }}
+              className={car}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`absolute right-0 top-1/2 h-24 w-40 -translate-y-1/2 ${cfg.road} border-y-4 border-white/60`}>
+      <div className="absolute inset-0 border-t-2 border-dashed border-white/70 top-1/2 -translate-y-1/2" />
+      <div className={`${laneBase} left-2 top-1/2 -translate-y-1/2`}>
+        {cars.map((_, i) => (
+          <motion.div
+            key={i}
+            animate={isGreen ? { x: [2, -24] } : { x: 0 }}
+            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.12 }}
+            className={car}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function SmartTrafficLightIntersection() {
+  const [loads, setLoads] = useState(defaultLoads);
+  const [totalCycle, setTotalCycle] = useState(90);
+  const [mode, setMode] = useState("smart");
+  const [phase, setPhase] = useState("NS");
+  const [lightState, setLightState] = useState("green");
+  const [countdown, setCountdown] = useState(10);
+
+  const cars = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(loads).map(([k, v]) => [k, colorMap[v].cars])
+    );
+  }, [loads]);
+
+  const phaseLoads = useMemo(() => {
+    const ns = cars.north + cars.south;
+    const ew = cars.east + cars.west;
+    return { ns, ew, total: ns + ew };
+  }, [cars]);
+
+  const timings = useMemo(() => {
+    const yellow = 3;
+    if (mode === "regular") {
+      const usable = totalCycle - 2 * yellow;
+      const half = Math.max(10, Math.round(usable / 2));
+      return { nsGreen: half, ewGreen: half, yellow };
+    }
+
+    const usable = totalCycle - 2 * yellow;
+    let nsGreen = Math.round((usable * phaseLoads.ns) / phaseLoads.total);
+    let ewGreen = usable - nsGreen;
+
+    nsGreen = Math.max(10, nsGreen);
+    ewGreen = Math.max(10, ewGreen);
+
+    const adjustedTotal = nsGreen + ewGreen;
+    if (adjustedTotal !== usable) {
+      ewGreen += usable - adjustedTotal;
+    }
+
+    return { nsGreen, ewGreen, yellow };
+  }, [mode, totalCycle, phaseLoads]);
+
+  useEffect(() => {
+    setPhase("NS");
+    setLightState("green");
+    setCountdown(timings.nsGreen);
+  }, [timings]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev > 1) return prev - 1;
+
+        if (lightState === "green") {
+          setLightState("yellow");
+          return timings.yellow;
+        }
+
+        if (phase === "NS") {
+          setPhase("EW");
+          setLightState("green");
+          return timings.ewGreen;
+        }
+
+        setPhase("NS");
+        setLightState("green");
+        return timings.nsGreen;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lightState, phase, timings]);
+
+  const nsActive = phase === "NS" ? lightState : "red";
+  const ewActive = phase === "EW" ? lightState : "red";
+
+  const setLoad = (dir, value) => setLoads((prev) => ({ ...prev, [dir]: value }));
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-6">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <Card className="rounded-3xl shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-2xl">
+              <span>Ақылды бағдаршам: 1 қиылыс</span>
+              <Badge className="rounded-full px-4 py-1 text-sm">{mode === "smart" ? "Smart Mode" : "Regular Mode"}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative mx-auto h-[620px] w-full max-w-[620px] rounded-[2rem] bg-zinc-300 shadow-inner">
+              <RoadQueue dir="north" load={loads.north} isGreen={nsActive === "green"} />
+              <RoadQueue dir="south" load={loads.south} isGreen={nsActive === "green"} />
+              <RoadQueue dir="west" load={loads.west} isGreen={ewActive === "green"} />
+              <RoadQueue dir="east" load={loads.east} isGreen={ewActive === "green"} />
+
+              <div className="absolute left-1/2 top-1/2 h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-zinc-700 shadow-lg">
+                <div className="absolute inset-0 border-4 border-dashed border-white/70" />
+                <div className="absolute left-1/2 top-0 h-full w-1 -translate-x-1/2 bg-white/80" />
+                <div className="absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 bg-white/80" />
+              </div>
+
+              <div className="absolute left-[42%] top-[28%]"><Light active={nsActive} countdown={phase === "NS" ? countdown : 0} /></div>
+              <div className="absolute left-[42%] bottom-[28%]"><Light active={nsActive} countdown={phase === "NS" ? countdown : 0} /></div>
+              <div className="absolute top-[42%] left-[28%]"><Light active={ewActive} countdown={phase === "EW" ? countdown : 0} /></div>
+              <div className="absolute top-[42%] right-[28%]"><Light active={ewActive} countdown={phase === "EW" ? countdown : 0} /></div>
+
+              <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-xl bg-black/70 px-4 py-2 text-lg font-bold text-white">Солтүстік</div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl bg-black/70 px-4 py-2 text-lg font-bold text-white">Оңтүстік</div>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 rounded-xl bg-black/70 px-4 py-2 text-lg font-bold text-white">Батыс</div>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 rounded-xl bg-black/70 px-4 py-2 text-lg font-bold text-white">Шығыс</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <Card className="rounded-3xl shadow-xl">
+            <CardHeader>
+              <CardTitle>Басқару панелі</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex flex-wrap gap-3">
+                <Button className="rounded-2xl" variant={mode === "smart" ? "default" : "outline"} onClick={() => setMode("smart")}>Ақылды режим</Button>
+                <Button className="rounded-2xl" variant={mode === "regular" ? "default" : "outline"} onClick={() => setMode("regular")}>Қалыпты режим</Button>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm font-medium">
+                  <span>Жалпы цикл уақыты</span>
+                  <span>{totalCycle} сек</span>
+                </div>
+                <Slider value={[totalCycle]} min={40} max={140} step={2} onValueChange={(v) => setTotalCycle(v[0])} />
+              </div>
+
+              {directions.map((d) => (
+                <div key={d.key} className="rounded-2xl border bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="font-semibold">{d.label}</span>
+                    <Badge variant="outline">{colorMap[loads[d.key]].label}</Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    {Object.entries(colorMap).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        onClick={() => setLoad(d.key, key)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${loads[d.key] === key ? "border-black bg-slate-100" : "border-slate-200 bg-white"}`}
+                      >
+                        {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl shadow-xl">
+            <CardHeader>
+              <CardTitle>Есептеу нәтижесі</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {directions.map((d) => (
+                  <div key={d.key} className="rounded-2xl border bg-white p-3">
+                    <div className="font-semibold">{d.label}</div>
+                    <div className="mt-1 text-slate-600">Түс: {colorMap[loads[d.key]].label}</div>
+                    <div className="text-slate-600">Шартты көлік саны: {cars[d.key]}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="font-semibold">Фаза жүктемелері</div>
+                <div className="mt-2">NS = {cars.north} + {cars.south} = <b>{phaseLoads.ns}</b></div>
+                <div>EW = {cars.east} + {cars.west} = <b>{phaseLoads.ew}</b></div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="font-semibold">Бағдаршам уақыты</div>
+                <div className="mt-2">NS жасыл: <b>{timings.nsGreen} сек</b></div>
+                <Progress value={(timings.nsGreen / totalCycle) * 100} className="mt-2" />
+                <div className="mt-3">EW жасыл: <b>{timings.ewGreen} сек</b></div>
+                <Progress value={(timings.ewGreen / totalCycle) * 100} className="mt-2" />
+                <div className="mt-3 text-slate-600">Сары шам: {timings.yellow} сек</div>
+              </div>
+
+              <div className="rounded-2xl bg-blue-50 p-4 text-slate-700">
+                <div className="font-semibold">Формула</div>
+                <div className="mt-2">t_NS = (T − 2·3) × n_NS / (n_NS + n_EW)</div>
+                <div>t_EW = (T − 2·3) × n_EW / (n_NS + n_EW)</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
